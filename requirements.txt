@@ -35,6 +35,7 @@ jsonschema-specifications==2024.10.1
 langchain==0.3.23
 langchain-community==0.3.21
 langchain-core==0.3.52
+langchain-groq==0.2.1       # <-- NEW
 langchain-text-splitters==0.3.8
 langsmith==0.3.31
 MarkupSafe==3.0.2
@@ -81,9 +82,9 @@ tenacity==9.1.2
 threadpoolctl==3.6.0
 tokenizers==0.21.1
 toml==0.10.2
-torch==2.6.0                  # Changed: removed '+cu118'
-torchaudio==2.6.0             # Changed: removed '+cu118'
-torchvision==0.21.0           # Changed: removed '+cu118'
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
 tornado==6.4.2
 tqdm==4.67.1
 transformers==4.51.3
