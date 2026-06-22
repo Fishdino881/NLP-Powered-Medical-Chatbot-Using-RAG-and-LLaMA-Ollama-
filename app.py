@@ -10,23 +10,23 @@ from langchain_groq import ChatGroq
 
 # --- Helper to get API key from secrets or environment ---
 def get_groq_api_key():
-    # Try st.secrets first (recommended for Streamlit Cloud)
+    # 1. Try Streamlit secrets (recommended for Streamlit Cloud)
     try:
         key = st.secrets.get("GROQ_API_KEY")
         if key:
             return key
     except Exception:
         pass
-    # Fallback to environment variable
+    # 2. Fallback to environment variable
     return os.environ.get("GROQ_API_KEY")
 
-# 1. Load and preprocess data
+# 1. Load and preprocess data (cached once)
 @st.cache_data
 def load_data():
     try:
         file_path = "medical_data.csv"
         if not os.path.exists(file_path):
-            st.error(f"❌ File '{file_path}' not found. Please upload it.")
+            st.error(f"❌ File '{file_path}' not found. Please upload it or place it in the root directory.")
             return []
         loader = CSVLoader(file_path=file_path, source_column="output", encoding="utf-8")
         docs = loader.load()
@@ -39,7 +39,7 @@ def load_data():
         st.error(f"Error loading data: {str(e)}")
         return []
 
-# 2. Vectorstore
+# 2. Vectorstore with HuggingFace embeddings (cached)
 @st.cache_resource
 def create_vectorstore(_documents):
     if not _documents:
@@ -47,27 +47,31 @@ def create_vectorstore(_documents):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     return FAISS.from_documents(_documents, embeddings)
 
-# 3. Load LLM with Groq
+# 3. Load LLM – using Groq (free API key required)
 @st.cache_resource
 def load_llm():
     api_key = get_groq_api_key()
     if not api_key:
         st.error("🚫 GROQ_API_KEY not set. Please add it to your Streamlit secrets.")
-        # Optionally show a hint to the user
         st.info("Go to your app dashboard → Settings → Secrets and add: `GROQ_API_KEY = \"your-key\"`")
         return None
-    return ChatGroq(
-        model="llama3-70b-8192",
-        api_key=api_key,
-        temperature=0.2,
-        max_retries=2,
-    )
+    try:
+        return ChatGroq(
+            model="llama-3.3-70b-versatile",   # <-- UPDATED: actively supported model
+            api_key=api_key,
+            temperature=0.2,
+            max_retries=2,
+        )
+    except Exception as e:
+        st.error(f"Failed to initialize Groq LLM: {str(e)}")
+        return None
 
-# 4. RAG chain
+# 4. RAG chain setup (cached)
 @st.cache_resource
 def setup_rag_chain(_vectorstore, _llm):
     if _vectorstore is None or _llm is None:
         return None
+
     prompt_template = PromptTemplate(
         input_variables=["context", "question"],
         template="""
@@ -87,6 +91,7 @@ Extract the following details clearly in plain English (no bullet points, just s
 
 Answer:"""
     )
+
     retriever = _vectorstore.as_retriever()
     return RetrievalQA.from_chain_type(
         llm=_llm,
@@ -100,7 +105,7 @@ Answer:"""
 st.set_page_config(page_title="Medical Data ChatBot", layout="centered")
 st.title("🩺 Medical Data ChatBot")
 
-# Load components once
+# Load data once at startup
 documents = load_data()
 vectorstore = create_vectorstore(documents)
 llm = load_llm()
@@ -110,7 +115,7 @@ query = st.text_input("Enter a disease name to extract info:")
 
 if query:
     if rag_chain is None:
-        st.error("⚠️ RAG chain is not ready. Check your data and API key.")
+        st.error("⚠️ RAG chain is not ready. Check your data, API key, and dependencies.")
     else:
         with st.spinner("🔍 Searching and generating answer..."):
             try:
